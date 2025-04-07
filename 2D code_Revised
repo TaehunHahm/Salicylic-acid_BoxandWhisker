@@ -1,0 +1,126 @@
+# First, install required packages if they are not already installed
+# This uses a reliable CRAN mirror and includes error handling
+install_with_checking <- function(pkg_name) {
+  if (!requireNamespace(pkg_name, quietly = TRUE)) {
+    message(paste0("Installing package: ", pkg_name))
+    install.packages(pkg_name, repos = "https://cloud.r-project.org/", dependencies = TRUE)
+    
+    # Verify installation succeeded
+    if (!requireNamespace(pkg_name, quietly = TRUE)) {
+      stop(paste0("Failed to install package: ", pkg_name))
+    }
+    message(paste0("Successfully installed package: ", pkg_name))
+  } else {
+    message(paste0("Package already installed: ", pkg_name))
+  }
+}
+
+# Install the required packages
+tryCatch({
+  install_with_checking("readxl")
+  install_with_checking("dplyr")
+  install_with_checking("ggplot2")
+}, error = function(e) {
+  stop("Error installing packages: ", e$message)
+})
+
+# Load the required packages with explicit error checking
+load_package_safely <- function(pkg_name) {
+  tryCatch({
+    library(pkg_name, character.only = TRUE)
+    message(paste0("Successfully loaded package: ", pkg_name))
+  }, error = function(e) {
+    stop(paste0("Failed to load package: ", pkg_name, " - Error: ", e$message))
+  })
+}
+
+# Now load the packages
+load_package_safely("ggplot2")
+load_package_safely("readxl")
+load_package_safely("dplyr")
+
+# Check current working directory
+message("Current working directory: ", getwd())
+
+# Read the Excel file
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+
+# Check if file exists
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the file path.")
+}
+
+# Read the Excel file with error handling
+cd31_data <- tryCatch({
+  readxl::read_excel(file_path)
+}, error = function(e) {
+  stop("Error reading Excel file: ", e$message)
+})
+
+message("Successfully read Excel file with dimensions: ", 
+        nrow(cd31_data), " rows x ", ncol(cd31_data), " columns")
+
+# Check and prepare data
+if (ncol(cd31_data) < 2) {
+  stop("Excel file must have at least 2 columns")
+}
+
+# Use the first two columns and make sure they're properly named
+names(cd31_data)[1:2] <- c("High CD31", "Low CD31")
+
+# Create a clean dataset for the boxplot
+cd31_long <- cd31_data %>%
+  select(1:2) %>%
+  tidyr::pivot_longer(
+    cols = c(1:2),
+    names_to = "Group",
+    values_to = "Value"
+  ) %>%
+  filter(!is.na(Value))
+
+message("Successfully prepared data for plotting")
+
+# Create a simple boxplot
+try({
+  p <- ggplot(cd31_long, aes(x = Group, y = Value, fill = Group)) +
+    geom_boxplot(alpha = 0.7) +
+    geom_jitter(width = 0.2, alpha = 0.3) +
+    scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon")) +
+    ggtitle("Comparison of CD31 Expression Levels") +
+    ylab("CD31 Values") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      axis.title.x = element_blank(),
+      legend.position = "none"
+    )
+  
+  # Display the plot
+  print(p)
+  
+  # Save the plot
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  message("Plot successfully saved as CD31_boxplot.png")
+}, error = function(e) {
+  message("Error creating plot: ", e$message)
+})
+
+# Calculate and display statistics
+stats <- cd31_long %>%
+  group_by(Group) %>%
+  summarize(
+    N = n(),
+    Mean = mean(Value, na.rm = TRUE),
+    SD = sd(Value, na.rm = TRUE),
+    Median = median(Value, na.rm = TRUE),
+    Q1 = quantile(Value, 0.25, na.rm = TRUE),
+    Q3 = quantile(Value, 0.75, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE)
+  )
+
+# Print statistics
+message("\nSummary Statistics:")
+print(stats)
+
+message("\nAnalysis completed successfully!")
