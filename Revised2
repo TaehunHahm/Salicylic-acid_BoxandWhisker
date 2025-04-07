@@ -1,0 +1,72 @@
+# Clear environment
+rm(list = ls())
+
+# Load packages - handle errors explicitly
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  stop("ggplot2 package is required. Please install it with install.packages('ggplot2')")
+}
+if (!requireNamespace("readxl", quietly = TRUE)) {
+  stop("readxl package is required. Please install it with install.packages('readxl')")
+}
+
+# Load libraries explicitly
+library(ggplot2)
+library(readxl)
+
+# Define file path
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+
+# Check file existence with clear error
+if (!file.exists(file_path)) {
+  stop(paste("File not found:", file_path))
+}
+
+# Try to read the file with error handling
+tryCatch({
+  raw_data <- read_excel(file_path)
+  print("Excel file read successfully")
+}, error = function(e) {
+  stop(paste("Error reading Excel file:", e$message))
+})
+
+# Verify data structure before proceeding
+if (ncol(raw_data) < 2) {
+  stop("Excel file must have at least 2 columns")
+}
+
+# Extract the first two columns
+cd31_data <- raw_data[, 1:2]
+colnames(cd31_data) <- c("High CD31", "Low CD31")
+print("Using first two columns as High CD31 and Low CD31")
+
+# Extract the values for each group
+high_values <- na.omit(cd31_data[, 1])
+low_values <- na.omit(cd31_data[, 2])
+
+print(paste("Number of High CD31 values:", length(high_values)))
+print(paste("Number of Low CD31 values:", length(low_values)))
+
+# Create data frame for plotting
+plot_data <- data.frame(
+  Group = c(rep("High CD31", length(high_values)), rep("Low CD31", length(low_values))),
+  Value = c(high_values, low_values)
+)
+
+# Create a very basic boxplot
+tryCatch({
+  boxplot <- ggplot(plot_data, aes(x = Group, y = Value, fill = Group)) +
+    geom_boxplot() +
+    theme_minimal() +
+    scale_fill_manual(values = c("High CD31" = "blue", "Low CD31" = "red"))
+  
+  print("Plot created successfully")
+  
+  # Display the plot
+  print(boxplot)
+  
+  # Save the plot
+  ggsave("CD31_basic_boxplot.png", boxplot, width = 7, height = 5)
+  print("Plot saved to CD31_basic_boxplot.png")
+}, error = function(e) {
+  print(paste("Error creating or saving plot:", e$message))
+})
