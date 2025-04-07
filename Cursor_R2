@@ -1,0 +1,162 @@
+# Alternative way to install packages with error handling
+install_if_needed <- function(package) {
+  # Check if package is already installed
+  if (!require(package, character.only = TRUE, quietly = TRUE)) {
+    # Try multiple repositories
+    repos <- c(
+      "https://cloud.r-project.org/",
+      "https://cran.rstudio.com/",
+      "https://cran.stat.ucla.edu/"
+    )
+    
+    success <- FALSE
+    for (repo in repos) {
+      tryCatch({
+        message(sprintf("Attempting to install %s from %s", package, repo))
+        install.packages(package, 
+                       repos = repo,
+                       dependencies = TRUE,
+                       quiet = FALSE)
+        library(package, character.only = TRUE)
+        success <- TRUE
+        message(sprintf("Successfully installed %s from %s", package, repo))
+        break
+      }, error = function(e) {
+        message(sprintf("Failed to install from %s: %s", repo, e$message))
+      })
+    }
+    
+    if (!success) {
+      stop(sprintf("Could not install package %s from any repository. Please check your internet connection and R version.", package))
+    }
+  } else {
+    message(sprintf("Package %s is already installed and loaded.", package))
+  }
+}
+
+# Check R version
+r_version <- R.version.string
+message(sprintf("Current R version: %s", r_version))
+
+# Try to install and load required packages
+required_packages <- c("ggplot2", "dplyr", "readxl", "tidyr", "gridExtra")
+for (pkg in required_packages) {
+  tryCatch({
+    install_if_needed(pkg)
+  }, error = function(e) {
+    message(sprintf("Error with package %s: %s", pkg, e$message))
+  })
+}
+
+# Verify all packages are loaded
+missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
+if (length(missing_packages) > 0) {
+  stop("The following packages could not be loaded: ", 
+       paste(missing_packages, collapse = ", "))
+}
+
+# Set working directory if needed
+# setwd("YOUR_PATH_HERE")
+
+# Check if file exists
+file_path <- "C:/1-1_Aspirin/n1-n3_HighCD31andLowCD31_ForCode_boxandWhis/n1-n3_HighCD31andLowCD31_ForCode_boxandWhis"
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the path and file name.")
+}
+
+# Read Excel file
+print("Reading Excel file...")
+raw_data <- read_excel(file_path)
+print("File read successfully")
+
+# Use only first two columns and rename if needed
+cd31_data <- raw_data[, 1:2]
+if (ncol(cd31_data) == 2) {
+  colnames(cd31_data) <- c("High CD31", "Low CD31")
+  print("Using first two columns, renamed to 'High CD31' and 'Low CD31'")
+} else {
+  stop("Expected at least 2 columns in the Excel file")
+}
+
+# Convert to long format (manually, without dplyr or tidyr)
+high_values <- cd31_data[, "High CD31"]
+low_values <- cd31_data[, "Low CD31"]
+
+# Remove NA values
+high_values <- high_values[!is.na(high_values)]
+low_values <- low_values[!is.na(low_values)]
+
+# Calculate summary statistics manually
+high_mean <- mean(high_values, na.rm = TRUE)
+high_median <- median(high_values, na.rm = TRUE)
+high_q1 <- quantile(high_values, 0.25, na.rm = TRUE)
+high_q3 <- quantile(high_values, 0.75, na.rm = TRUE)
+high_min <- min(high_values, na.rm = TRUE)
+high_max <- max(high_values, na.rm = TRUE)
+high_n <- length(high_values)
+high_sd <- sd(high_values, na.rm = TRUE)
+
+low_mean <- mean(low_values, na.rm = TRUE)
+low_median <- median(low_values, na.rm = TRUE)
+low_q1 <- quantile(low_values, 0.25, na.rm = TRUE)
+low_q3 <- quantile(low_values, 0.75, na.rm = TRUE)
+low_min <- min(low_values, na.rm = TRUE)
+low_max <- max(low_values, na.rm = TRUE)
+low_n <- length(low_values)
+low_sd <- sd(low_values, na.rm = TRUE)
+
+# Display summary statistics
+print("Summary Statistics:")
+stats_df <- data.frame(
+  Group = c("High CD31", "Low CD31"),
+  N = c(high_n, low_n),
+  Mean = c(high_mean, low_mean),
+  SD = c(high_sd, low_sd),
+  Median = c(high_median, low_median),
+  Q1 = c(high_q1, low_q1),
+  Q3 = c(high_q3, low_q3),
+  Min = c(high_min, low_min),
+  Max = c(high_max, low_max)
+)
+print(stats_df)
+
+# Create long format data for ggplot (manually)
+Group <- c(rep("High CD31", length(high_values)), rep("Low CD31", length(low_values)))
+Value <- c(high_values, low_values)
+long_data <- data.frame(Group = Group, Value = Value)
+
+# Perform t-test
+t_test_result <- t.test(high_values, low_values, var.equal = FALSE)
+p_value <- t_test_result$p.value
+p_value_text <- if(p_value < 0.001) "p < 0.001" else paste("p =", round(p_value, 3))
+
+print("T-test Results:")
+print(t_test_result)
+
+# Create basic boxplot with ggplot2
+p <- ggplot(long_data, aes(x = Group, y = Value, fill = Group)) +
+  geom_boxplot(notch = TRUE) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  ggtitle("Comparison of CD31 Expression Levels") +
+  ylab("CD31 Values") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon"))
+
+# Add p-value annotation
+p <- p + annotate("text", 
+                 x = 1.5, 
+                 y = max(Value, na.rm = TRUE) * 1.05,
+                 label = p_value_text,
+                 fontface = "bold")
+
+# Display the plot
+print(p)
+
+# Try to save the plot
+try({
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  print("Plot saved as 'CD31_boxplot.png'")
+})
+
+print("Analysis completed successfully!")
