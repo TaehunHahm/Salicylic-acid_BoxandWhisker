@@ -1,3 +1,17 @@
+# Clear environment
+rm(list = ls())
+
+# Load packages - handle errors explicitly
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  stop("ggplot2 package is required. Please install it with install.packages('ggplot2')")
+}
+if (!requireNamespace("readxl", quietly = TRUE)) {
+  stop("readxl package is required. Please install it with install.packages('readxl')")
+}
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  stop("readxl package is required. Please install it with install.packages('dplyr')")
+}
+
 # Load required libraries
 library(ggplot2)
 library(readxl)
