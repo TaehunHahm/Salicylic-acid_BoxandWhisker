@@ -1,0 +1,17 @@
+# Install required packages if not already installed
+if (!requireNamespace("shiny", quietly = TRUE)) install.packages("shiny")
+if (!requireNamespace("rstudio/shiny-incubator", quietly = TRUE)) install.packages("rstudio/shiny-incubator")
+if (!requireNamespace("beeswarm", quietly = TRUE)) install.packages("beeswarm")
+if (!requireNamespace("vioplot", quietly = TRUE)) install.packages("vioplot")
+if (!requireNamespace("beanplot", quietly = TRUE)) install.packages("beanplot")
+if (!requireNamespace("RColorBrewer", quietly = TRUE)) install.packages("RColorBrewer")
+
+
+# Load required libraries
+library(shiny)
+library(sdevtool)
+library(rstudio/shiny-incubator)
+library(beeswarm)
+library(vioplot)
+library(beanplot)
+library(RColorBrewer)
