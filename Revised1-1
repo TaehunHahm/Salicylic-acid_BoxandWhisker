@@ -1,0 +1,201 @@
+# Clean up environment and remove all loaded packages
+rm(list = ls())
+if(length((.packages())) > 0) {
+  invisible(sapply(.packages(), function(pkg) detach(package:pkg, unload = TRUE, character.only = TRUE)))
+}
+
+# Load only essential packages
+library(ggplot2)  # For plotting
+library(readxl)   # For reading Excel
+
+# Print version information
+cat("R version:", R.version.string, "\n")
+cat("ggplot2 version:", packageVersion("ggplot2"), "\n")
+cat("readxl version:", packageVersion("readxl"), "\n")
+
+# Set working directory if needed
+# setwd("YOUR_PATH_HERE")
+
+# Check if file exists
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the path and file name.")
+}
+
+# Read Excel file
+cat("Reading Excel file:", file_path, "\n")
+raw_data <- read_excel(file_path)
+cat("File read successfully\n")
+
+# Display structure
+str(raw_data)
+
+# Use only first two columns and rename if needed
+cd31_data <- raw_data[, 1:2]
+if (ncol(cd31_data) == 2) {
+  colnames(cd31_data) <- c("High CD31", "Low CD31")
+  cat("Using first two columns, renamed to 'High CD31' and 'Low CD31'\n")
+} else {
+  stop("Expected at least 2 columns in the Excel file")
+}
+
+# Convert to long format (manually, without dplyr or tidyr)
+high_values <- cd31_data[, "High CD31"]
+low_values <- cd31_data[, "Low CD31"]
+
+# Remove NA values
+high_values <- high_values[!is.na(high_values)]
+low_values <- low_values[!is.na(low_values)]
+
+# Calculate summary statistics manually
+calculate_stats <- function(values) {
+  c(
+    Mean = mean(values, na.rm = TRUE),
+    Median = median(values, na.rm = TRUE),
+    Q1 = quantile(values, 0.25, na.rm = TRUE),
+    Q3 = quantile(values, 0.75, na.rm = TRUE),
+    Min = min(values, na.rm = TRUE),
+    Max = max(values, na.rm = TRUE),
+    N = length(values),
+    SD = sd(values, na.rm = TRUE)
+  )
+}
+
+high_stats <- calculate_stats(high_values)
+low_stats <- calculate_stats(low_values)
+
+# Display summary statistics
+cat("\nSummary Statistics:\n")
+stats_df <- data.frame(
+  Group = c("High CD31", "Low CD31"),
+  N = c(high_stats["N"], low_stats["N"]),
+  Mean = c(high_stats["Mean"], low_stats["Mean"]),
+  SD = c(high_stats["SD"], low_stats["SD"]),
+  Median = c(high_stats["Median"], low_stats["Median"]),
+  Q1 = c(high_stats["Q1"], low_stats["Q1"]),
+  Q3 = c(high_stats["Q3"], low_stats["Q3"]),
+  Min = c(high_stats["Min"], low_stats["Min"]),
+  Max = c(high_stats["Max"], low_stats["Max"])
+)
+print(stats_df)
+
+# Create long format data for ggplot (manually)
+Group <- c(rep("High CD31", length(high_values)), rep("Low CD31", length(low_values)))
+Value <- c(high_values, low_values)
+long_data <- data.frame(Group = Group, Value = Value)
+
+# Perform t-test
+t_test_result <- t.test(high_values, low_values, var.equal = FALSE)
+p_value <- t_test_result$p.value
+p_value_text <- if(p_value < 0.001) "p < 0.001" else paste("p =", round(p_value, 3))
+
+cat("\nT-test Results:\n")
+print(t_test_result)
+
+# Create boxplot with ggplot2
+p <- ggplot(long_data, aes(x = Group, y = Value, fill = Group)) +
+  geom_boxplot(
+    notch = TRUE,
+    outlier.size = 3
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.3,
+    size = 1.5
+  ) +
+  # Add p-value annotation
+  annotate("text", 
+           x = 1.5, 
+           y = max(Value, na.rm = TRUE) * 1.05,
+           label = p_value_text,
+           fontface = "bold", 
+           size = 4) +
+  # Add median values
+  annotate("text",
+           x = 1,
+           y = high_stats["Median"],
+           label = paste("Median:", round(high_stats["Median"], 2)),
+           vjust = -1.5,
+           fontface = "bold",
+           size = 3.5) +
+  annotate("text",
+           x = 2,
+           y = low_stats["Median"],
+           label = paste("Median:", round(low_stats["Median"], 2)),
+           vjust = -1.5,
+           fontface = "bold",
+           size = 3.5) +
+  # Add mean values
+  annotate("text",
+           x = 1,
+           y = high_stats["Mean"],
+           label = paste("Mean:", round(high_stats["Mean"], 2)),
+           vjust = 2.5,
+           fontface = "bold",
+           size = 3.5) +
+  annotate("text",
+           x = 2,
+           y = low_stats["Mean"],
+           label = paste("Mean:", round(low_stats["Mean"], 2)),
+           vjust = 2.5,
+           fontface = "bold",
+           size = 3.5) +
+  # Add sample size
+  annotate("text",
+           x = 1,
+           y = high_stats["Min"],
+           label = paste("n =", high_stats["N"]),
+           vjust = 2,
+           fontface = "bold",
+           size = 3) +
+  annotate("text",
+           x = 2,
+           y = low_stats["Min"],
+           label = paste("n =", low_stats["N"]),
+           vjust = 2,
+           fontface = "bold",
+           size = 3) +
+  # Simple theme
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.title.x = element_blank(),
+    legend.position = "none"
+  ) +
+  # Add titles and labels
+  labs(
+    title = "Comparison of CD31 Expression Levels",
+    y = "CD31 Values",
+    caption = "Box: Interquartile range (IQR, 25%-75%)\nWhiskers: Range of data excluding outliers\nNotch: 95% confidence interval around median"
+  ) +
+  # Use simple color palette
+  scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon"))
+
+# Display the plot
+print(p)
+
+# Try to save the plot
+try({
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  cat("\nPlot saved as 'CD31_boxplot.png'\n")
+})
+
+cat("\nAnalysis completed successfully!\n")
+
+# Create a formatted summary table (text-based)
+cat("\n=============================================\n")
+cat("Summary Table for CD31 Expression Analysis\n")
+cat("=============================================\n")
+cat(sprintf("%-10s %-6s %-15s %-20s %-15s\n", 
+            "Group", "N", "Mean ± SD", "Median (IQR)", "Range"))
+cat("---------------------------------------------\n")
+for(i in 1:nrow(stats_df)) {
+  cat(sprintf("%-10s %-6d %-15s %-20s %-15s\n", 
+              stats_df$Group[i], 
+              stats_df$N[i],
+              paste(round(stats_df$Mean[i], 2), "±", round(stats_df$SD[i], 2)),
+              paste(round(stats_df$Median[i], 2), "(", round(stats_df$Q1[i], 2), "-", round(stats_df$Q3[i], 2), ")"),
+              paste(round(stats_df$Min[i], 2), "-", round(stats_df$Max[i], 2))
+  ))
+}
+cat("=============================================\n")
