@@ -1,0 +1,131 @@
+# IMPORTANT: First install packages MANUALLY in the RStudio console:
+# install.packages(c("ggplot2", "dplyr", "readxl", "tidyr"))
+# If that doesn't work, try:
+# install.packages(c("ggplot2", "dplyr", "readxl", "tidyr"), repos="https://cloud.r-project.org/")
+# Or try using RStudio's GUI: Tools > Install Packages...
+
+# Once packages are installed, run this script:
+
+# Load libraries - use suppressPackageStartupMessages to reduce console output
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(dplyr)
+  library(readxl)
+  library(tidyr)
+})
+
+# Set working directory to where your file is (adjust as needed)
+# setwd("YOUR_PATH_HERE")  # Uncomment and replace with your path
+
+# Print current working directory to check
+cat("Current working directory:", getwd(), "\n")
+
+# Verify the file exists before trying to read it
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the path and file name.")
+}
+
+# Try to read the Excel file
+cat("Attempting to read Excel file:", file_path, "\n")
+cd31_data <- read_excel(file_path)
+cat("Successfully read Excel file!\n")
+
+# Display column names
+cat("Column names in the file:", paste(names(cd31_data), collapse=", "), "\n")
+
+# Check if the expected columns exist and rename if needed
+if (!("High CD31" %in% names(cd31_data) && "Low CD31" %in% names(cd31_data))) {
+  # Assume the first two columns are the ones we want
+  old_names <- names(cd31_data)[1:2]
+  names(cd31_data)[1:2] <- c("High CD31", "Low CD31")
+  cat("Renamed columns from", paste(old_names, collapse=", "), 
+      "to 'High CD31', 'Low CD31'\n")
+}
+
+# Convert to long format
+cd31_long <- cd31_data %>%
+  select(1:2) %>%  # Just take first two columns to be safe
+  pivot_longer(
+    cols = everything(), 
+    names_to = "Group", 
+    values_to = "Value"
+  ) %>%
+  filter(!is.na(Value))
+
+# Calculate statistics
+stats <- cd31_long %>%
+  group_by(Group) %>%
+  summarize(
+    Median = median(Value, na.rm = TRUE),
+    Mean = mean(Value, na.rm = TRUE),
+    Q1 = quantile(Value, 0.25, na.rm = TRUE),
+    Q3 = quantile(Value, 0.75, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    N = n()
+  )
+
+# Print statistics to console
+print(stats)
+
+# T-test
+t_test_result <- t.test(
+  Value ~ Group, 
+  data = cd31_long,
+  alternative = "two.sided",
+  var.equal = FALSE
+)
+
+p_value <- t_test_result$p.value
+p_value_text <- if(p_value < 0.001) "p < 0.001" else paste("p =", round(p_value, 3))
+
+# Create a simple but clear boxplot
+p <- ggplot(cd31_long, aes(x = Group, y = Value, fill = Group)) +
+  geom_boxplot(
+    notch = TRUE,
+    outlier.size = 3
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.3,
+    size = 1.5
+  ) +
+  # Add p-value annotation
+  annotate("text", 
+           x = 1.5, 
+           y = max(cd31_long$Value, na.rm = TRUE) * 1.05,
+           label = p_value_text,
+           fontface = "bold", 
+           size = 4) +
+  # Use a simple theme to avoid requiring additional packages
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.title.x = element_blank(),
+    legend.position = "none"
+  ) +
+  # Add titles and labels
+  labs(
+    title = "Comparison of CD31 Expression Levels",
+    y = "CD31 Values"
+  ) +
+  # Use a simple color palette
+  scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon"))
+
+# Print the plot
+print(p)
+
+# Try to save the plot
+tryCatch({
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  cat("Plot saved as 'CD31_boxplot.png'\n")
+}, error = function(e) {
+  cat("Couldn't save plot:", e$message, "\n")
+})
+
+# Print t-test results
+cat("\nT-test Results:\n")
+print(t_test_result)
+
+cat("\nAnalysis completed successfully!\n")
