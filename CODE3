@@ -1,0 +1,172 @@
+# Install required packages if not already installed
+if (!requireNamespace("ggplot2", quietly = TRUE)) install.packages("ggplot2")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+if (!requireNamespace("readxl", quietly = TRUE)) install.packages("readxl")
+if (!requireNamespace("tidyr", quietly = TRUE)) install.packages("tidyr")
+if (!requireNamespace("gridExtra", quietly = TRUE)) install.packages("gridExtra")
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(tidyr)
+library(gridExtra)
+
+# Read the Excel file
+# Replace 'your_file.xlsx' with the actual path to your Excel file
+# Assuming the first column is "High CD31 values" and the second column is "Low CD31 values"
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+
+# Read data from Excel
+cd31_data <- read_excel(file_path)
+
+# If your Excel file has column headers, use:
+# cd31_data <- read_excel(file_path, col_names = TRUE)
+# If no headers, use:
+# cd31_data <- read_excel(file_path, col_names = FALSE)
+# and then rename:
+# names(cd31_data) <- c("High CD31", "Low CD31")
+
+# Check the data structure
+print(str(cd31_data))
+
+# In case your Excel columns have different names, rename them
+# Uncomment and modify if needed:
+# names(cd31_data) <- c("High CD31", "Low CD31")
+
+# Convert data from wide to long format for ggplot
+cd31_long <- cd31_data %>%
+  pivot_longer(
+    cols = everything(), 
+    names_to = "Group", 
+    values_to = "Value"
+  ) %>%
+  # Remove NA values that might exist in the Excel file
+  filter(!is.na(Value))
+
+# Calculate statistics for annotations
+stats <- cd31_long %>%
+  group_by(Group) %>%
+  summarize(
+    Median = median(Value, na.rm = TRUE),
+    Mean = mean(Value, na.rm = TRUE),
+    Q1 = quantile(Value, 0.25, na.rm = TRUE),
+    Q3 = quantile(Value, 0.75, na.rm = TRUE),
+    Min = min(Value, na.rm = TRUE),
+    Max = max(Value, na.rm = TRUE),
+    N = n(),
+    .groups = 'drop'
+  )
+
+# Print statistics to console
+print(stats)
+
+# Calculate p-value for t-test between groups
+t_test_result <- t.test(
+  Value ~ Group, 
+  data = cd31_long,
+  alternative = "two.sided",
+  var.equal = FALSE  # Welch's t-test (doesn't assume equal variances)
+)
+
+p_value <- t_test_result$p.value
+p_value_text <- if(p_value < 0.001) "p < 0.001" else paste("p =", round(p_value, 3))
+
+# Define custom color palette for CD31 groups
+cd31_colors <- c("High CD31" = "#3498db", "Low CD31" = "#e74c3c")
+
+# Create the fancy boxplot
+p <- ggplot(cd31_long, aes(x = Group, y = Value, fill = Group)) +
+  # Add the boxplot with notch
+  geom_boxplot(
+    notch = TRUE,
+    width = 0.6,
+    alpha = 0.8,
+    outlier.size = 4,
+    outlier.alpha = 0.6
+  ) +
+  # Add individual data points with jitter
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.4,
+    size = 2
+  ) +
+  # Add median annotations
+  geom_text(
+    data = stats,
+    aes(x = Group, y = Median, label = paste("Median:", round(Median, 2))),
+    vjust = -1.5,
+    fontface = "bold",
+    size = 4
+  ) +
+  # Add mean annotations
+  geom_text(
+    data = stats,
+    aes(x = Group, y = Mean, label = paste("Mean:", round(Mean, 2))),
+    vjust = 2.5,
+    fontface = "bold",
+    size = 4
+  ) +
+  # Add sample size annotations
+  geom_text(
+    data = stats,
+    aes(x = Group, y = Min, label = paste("n =", N)),
+    vjust = 2,
+    fontface = "bold",
+    size = 3.5
+  ) +
+  # Add p-value annotation
+  annotate("text", 
+           x = 1.5, 
+           y = max(cd31_long$Value, na.rm = TRUE) * 1.1,
+           label = p_value_text,
+           fontface = "bold", 
+           size = 5) +
+  # Set a custom theme and style
+  theme_light() +
+  theme(
+    text = element_text(family = "serif"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5, margin = margin(b = 20)),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.title.x = element_blank(),  # Remove x-axis label since group names are clear
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(face = "bold"),
+    legend.position = "none",  # Remove legend as colors are self-explanatory
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed", color = "gray70")
+  ) +
+  # Add titles and labels
+  labs(
+    title = "Comparison of CD31 Expression Levels",
+    y = "CD31 Values",
+    caption = "Box: Interquartile range (IQR, 25%-75%)\nWhiskers: Range of data excluding outliers\nNotch: 95% confidence interval around median"
+  ) +
+  # Use the custom color palette
+  scale_fill_manual(values = cd31_colors)
+
+# Print the plot
+print(p)
+
+# To save the plot to a file (optional)
+# Uncomment the line below and specify your desired file path
+# ggsave("CD31_boxplot.png", p, width = 10, height = 8, dpi = 300)
+
+# Optional: Add a summary table below the plot
+summary_table <- stats %>%
+  mutate(
+    `Mean ± SD` = paste0(round(Mean, 2), " ± ", round(sd(cd31_long$Value[cd31_long$Group == Group]), 2)),
+    `Median (IQR)` = paste0(round(Median, 2), " (", round(Q1, 2), "-", round(Q3, 2), ")"),
+    `Range` = paste0(round(Min, 2), " - ", round(Max, 2))
+  ) %>%
+  select(Group, N, `Mean ± SD`, `Median (IQR)`, `Range`)
+
+# Print the summary table
+print(summary_table)
+
+# Generate and print descriptive statistics
+cat("\nDescriptive Statistics by Group:\n")
+print(stats)
+
+cat("\nT-test Results:\n")
+print(t_test_result)
