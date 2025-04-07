@@ -1,0 +1,131 @@
+# First, detach all potentially conflicting packages
+if ("package:dplyr" %in% search()) detach("package:dplyr", unload = TRUE, character.only = TRUE)
+if ("package:plyr" %in% search()) detach("package:plyr", unload = TRUE, character.only = TRUE)
+if ("package:tidyr" %in% search()) detach("package:tidyr", unload = TRUE, character.only = TRUE)
+
+# Clear the workspace (optional - uncomment if needed)
+# rm(list = ls())
+
+# Update dplyr package (uncomment if needed)
+# install.packages("dplyr")
+
+# Now load packages in the correct order
+library(ggplot2)
+library(dplyr)  # This should now load the correct version
+library(readxl)
+library(tidyr)
+
+# Print version information to verify
+cat("dplyr version:", packageVersion("dplyr"), "\n")
+cat("tidyr version:", packageVersion("tidyr"), "\n")
+cat("ggplot2 version:", packageVersion("ggplot2"), "\n")
+
+# Set working directory to where your file is (adjust as needed)
+# setwd("YOUR_PATH_HERE")  # Uncomment and replace with your path
+
+# Verify the file exists before trying to read it
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the path and file name.")
+}
+
+# Try to read the Excel file
+cat("Attempting to read Excel file:", file_path, "\n")
+cd31_data <- read_excel(file_path)
+cat("Successfully read Excel file!\n")
+
+# Display column names
+cat("Column names in the file:", paste(names(cd31_data), collapse=", "), "\n")
+
+# Check if the expected columns exist and rename if needed
+if (!("High CD31" %in% names(cd31_data) && "Low CD31" %in% names(cd31_data))) {
+  # Assume the first two columns are the ones we want
+  old_names <- names(cd31_data)[1:2]
+  names(cd31_data)[1:2] <- c("High CD31", "Low CD31")
+  cat("Renamed columns from", paste(old_names, collapse=", "), 
+      "to 'High CD31', 'Low CD31'\n")
+}
+
+# Create a safe version of the data transformation without using pipe operators
+# This avoids potential issues with dplyr version conflicts
+cd31_long <- tidyr::pivot_longer(
+  data = cd31_data[, 1:2],  # Just use the first two columns
+  cols = colnames(cd31_data)[1:2],
+  names_to = "Group",
+  values_to = "Value"
+)
+cd31_long <- cd31_long[!is.na(cd31_long$Value), ]
+
+# Calculate statistics manually instead of using dplyr
+groups <- unique(cd31_long$Group)
+stats <- data.frame(
+  Group = groups,
+  Median = sapply(groups, function(g) median(cd31_long$Value[cd31_long$Group == g], na.rm = TRUE)),
+  Mean = sapply(groups, function(g) mean(cd31_long$Value[cd31_long$Group == g], na.rm = TRUE)),
+  Q1 = sapply(groups, function(g) quantile(cd31_long$Value[cd31_long$Group == g], 0.25, na.rm = TRUE)),
+  Q3 = sapply(groups, function(g) quantile(cd31_long$Value[cd31_long$Group == g], 0.75, na.rm = TRUE)),
+  Min = sapply(groups, function(g) min(cd31_long$Value[cd31_long$Group == g], na.rm = TRUE)),
+  Max = sapply(groups, function(g) max(cd31_long$Value[cd31_long$Group == g], na.rm = TRUE)),
+  N = sapply(groups, function(g) sum(!is.na(cd31_long$Value[cd31_long$Group == g])))
+)
+
+# Print statistics to console
+print(stats)
+
+# T-test
+t_test_result <- t.test(
+  cd31_long$Value ~ cd31_long$Group,
+  alternative = "two.sided",
+  var.equal = FALSE
+)
+
+p_value <- t_test_result$p.value
+p_value_text <- if(p_value < 0.001) "p < 0.001" else paste("p =", round(p_value, 3))
+
+# Create a simple but clear boxplot
+p <- ggplot(cd31_long, aes(x = Group, y = Value, fill = Group)) +
+  geom_boxplot(
+    notch = TRUE,
+    outlier.size = 3
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.3,
+    size = 1.5
+  ) +
+  # Add p-value annotation
+  annotate("text", 
+           x = 1.5, 
+           y = max(cd31_long$Value, na.rm = TRUE) * 1.05,
+           label = p_value_text,
+           fontface = "bold", 
+           size = 4) +
+  # Use a simple theme to avoid requiring additional packages
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.title.x = element_blank(),
+    legend.position = "none"
+  ) +
+  # Add titles and labels
+  labs(
+    title = "Comparison of CD31 Expression Levels",
+    y = "CD31 Values"
+  ) +
+  # Use a simple color palette
+  scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon"))
+
+# Print the plot
+print(p)
+
+# Try to save the plot
+try({
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  cat("Plot saved as 'CD31_boxplot.png'\n")
+})
+
+# Print t-test results
+cat("\nT-test Results:\n")
+print(t_test_result)
+
+cat("\nAnalysis completed successfully!\n")
