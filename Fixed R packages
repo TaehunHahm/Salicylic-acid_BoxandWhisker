@@ -1,0 +1,21 @@
+# Install required packages if not already installed
+if (!requireNamespace("shiny", quietly = TRUE)) install.packages("shiny")
+if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+if (!requireNamespace("beeswarm", quietly = TRUE)) install.packages("beeswarm")
+if (!requireNamespace("vioplot", quietly = TRUE)) install.packages("vioplot")
+if (!requireNamespace("beanplot", quietly = TRUE)) install.packages("beanplot")
+if (!requireNamespace("RColorBrewer", quietly = TRUE)) install.packages("RColorBrewer")
+
+# Install shiny-incubator from GitHub if needed
+if (!requireNamespace("shinyIncubator", quietly = TRUE)) {
+  remotes::install_github("rstudio/shiny-incubator")
+}
+
+# Load required libraries
+library(shiny)
+# library(sdevtool) # Commented out as this doesn't appear to be a standard package
+library(shinyIncubator) # Changed from rstudio/shiny-incubator
+library(beeswarm)
+library(vioplot)
+library(beanplot)
+library(RColorBrewer)
