@@ -1,0 +1,101 @@
+# Clean up environment
+rm(list = ls())
+
+# Try to detach problematic packages
+try(detach("package:dplyr", unload = TRUE, character.only = TRUE), silent = TRUE)
+try(detach("package:tidyr", unload = TRUE, character.only = TRUE), silent = TRUE)
+
+# Load only essential packages
+library(ggplot2)  # For plotting
+library(readxl)   # For reading Excel
+
+# Set working directory if needed
+# setwd("YOUR_PATH_HERE")
+
+# Check if file exists
+file_path <- "n1_HighCD31andLowCD31_Tumor.xlsx"
+if (!file.exists(file_path)) {
+  stop("File not found: ", file_path, ". Please check the path and file name.")
+}
+
+# Read Excel file
+print("Reading Excel file...")
+raw_data <- read_excel(file_path)
+print("File read successfully")
+
+# Use only first two columns and rename if needed
+cd31_data <- raw_data[, 1:2]
+if (ncol(cd31_data) == 2) {
+  colnames(cd31_data) <- c("High CD31", "Low CD31")
+  print("Using first two columns, renamed to 'High CD31' and 'Low CD31'")
+} else {
+  stop("Expected at least 2 columns in the Excel file")
+}
+
+# Convert to long format (manually, without dplyr or tidyr)
+high_values <- cd31_data[, "High CD31"]
+low_values <- cd31_data[, "Low CD31"]
+
+# Remove NA values
+high_values <- high_values[!is.na(high_values)]
+low_values <- low_values[!is.na(low_values)]
+
+# Calculate summary statistics manually
+high_mean <- mean(high_values, na.rm = TRUE)
+high_median <- median(high_values, na.rm = TRUE)
+high_q1 <- quantile(high_values, 0.25, na.rm = TRUE)
+high_q3 <- quantile(high_values, 0.75, na.rm = TRUE)
+high_min <- min(high_values, na.rm = TRUE)
+high_max <- max(high_values, na.rm = TRUE)
+high_n <- length(high_values)
+high_sd <- sd(high_values, na.rm = TRUE)
+
+low_mean <- mean(low_values, na.rm = TRUE)
+low_median <- median(low_values, na.rm = TRUE)
+low_q1 <- quantile(low_values, 0.25, na.rm = TRUE)
+low_q3 <- quantile(low_values, 0.75, na.rm = TRUE)
+low_min <- min(low_values, na.rm = TRUE)
+low_max <- max(low_values, na.rm = TRUE)
+low_n <- length(low_values)
+low_sd <- sd(low_values, na.rm = TRUE)
+
+# Display summary statistics
+print("Summary Statistics:")
+stats_df <- data.frame(
+  Group = c("High CD31", "Low CD31"),
+  N = c(high_n, low_n),
+  Mean = c(high_mean, low_mean),
+  SD = c(high_sd, low_sd),
+  Median = c(high_median, low_median),
+  Q1 = c(high_q1, low_q1),
+  Q3 = c(high_q3, low_q3),
+  Min = c(high_min, low_min),
+  Max = c(high_max, low_max)
+)
+print(stats_df)
+
+# Create long format data for ggplot (manually)
+Group <- c(rep("High CD31", length(high_values)), rep("Low CD31", length(low_values)))
+Value <- c(high_values, low_values)
+long_data <- data.frame(Group = Group, Value = Value)
+
+# Create basic boxplot with ggplot2
+p <- ggplot(long_data, aes(x = Group, y = Value, fill = Group)) +
+  geom_boxplot(notch = TRUE) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  ggtitle("Comparison of CD31 Expression Levels") +
+  ylab("CD31 Values") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("High CD31" = "skyblue", "Low CD31" = "salmon"))
+
+# Display the plot
+print(p)
+
+# Try to save the plot
+try({
+  ggsave("CD31_boxplot.png", p, width = 8, height = 6)
+  print("Plot saved as 'CD31_boxplot.png'")
+})
+
+print("Analysis completed successfully!")
