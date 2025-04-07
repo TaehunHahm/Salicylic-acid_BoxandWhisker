@@ -1,0 +1,72 @@
+{
+    "mcpServers": {
+      "mcp-server-firecrawl": {
+        "command": "npx",
+        "args": ["-y", "firecrawl-mcp"],
+        "env": {
+          "FIRECRAWL_API_KEY": "fc-e704412af0b741f89a9f674e031d0eab",
+  
+          "FIRECRAWL_RETRY_MAX_ATTEMPTS": "5",
+          "FIRECRAWL_RETRY_INITIAL_DELAY": "2000",
+          "FIRECRAWL_RETRY_MAX_DELAY": "30000",
+          "FIRECRAWL_RETRY_BACKOFF_FACTOR": "3",
+  
+          "FIRECRAWL_CREDIT_WARNING_THRESHOLD": "2000",
+          "FIRECRAWL_CREDIT_CRITICAL_THRESHOLD": "500"
+        }
+      },
+      "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@suekou/mcp-notion-server"],
+      "env": {
+        "NOTION_API_TOKEN": "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"
+      }
+    },
+    "excel": {
+      "command": "cmd",
+      "args": ["/C", "npx", "--yes", "@negokaz/excel-mcp-server"],
+      "env": {
+        "EXCEL_MCP_PAGING_CELLS_LIMIT": "4000"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+      }
+    },
+    "mcp-paperswithcode": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@hbg/mcp-paperswithcode",
+        "--config",
+        "{}"
+      ]
+    },
+    "websearch": {
+            "command": "cmd",
+            "args": [
+				"/c",
+				"npx",
+                "websearch-mcp"
+            ],
+            "environment": {
+                "API_URL": "http://localhost:3001",
+                "MAX_SEARCH_RESULT": "1"
+            }
+        }
+    }
+  }
