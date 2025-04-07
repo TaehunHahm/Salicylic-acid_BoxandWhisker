@@ -1,0 +1,102 @@
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+# Set a seed for reproducibility
+set.seed(42)
+
+# Create sample data similar to the Python example
+group_a <- rnorm(200, mean = 100, sd = 10)
+group_b <- rnorm(200, mean = 90, sd = 20)
+group_c <- rnorm(200, mean = 80, sd = 30)
+group_d <- rnorm(200, mean = 70, sd = 40)
+
+# Create a data frame
+df <- data.frame(
+  Group = factor(rep(c("Group A", "Group B", "Group C", "Group D"), each = 200),
+                levels = c("Group A", "Group B", "Group C", "Group D")),
+  Value = c(group_a, group_b, group_c, group_d)
+)
+
+# Calculate statistics for annotations
+stats <- df %>%
+  group_by(Group) %>%
+  summarize(
+    Median = median(Value),
+    Mean = mean(Value),
+    .groups = 'drop'
+  )
+
+# Define custom color palette
+custom_colors <- c("Group A" = "#3498db", 
+                   "Group B" = "#2ecc71", 
+                   "Group C" = "#e74c3c", 
+                   "Group D" = "#9b59b6")
+
+# Create the fancy boxplot
+p <- ggplot(df, aes(x = Group, y = Value, fill = Group)) +
+  # Add the boxplot with notch
+  geom_boxplot(
+    notch = TRUE,
+    width = 0.6,
+    alpha = 0.8,
+    outlier.size = 4,
+    outlier.alpha = 0.6
+  ) +
+  # Add individual data points with jitter
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.3,
+    size = 2
+  ) +
+  # Add median annotations
+  geom_text(
+    data = stats,
+    aes(x = Group, y = Median + 10, label = paste("Median:", round(Median, 1))),
+    fontface = "bold",
+    size = 3.5,
+    vjust = -0.5
+  ) +
+  # Add mean annotations
+  geom_text(
+    data = stats,
+    aes(x = Group, y = Mean - 15, label = paste("Mean:", round(Mean, 1))),
+    fontface = "bold",
+    size = 3.5,
+    vjust = 1.5
+  ) +
+  # Set a custom theme and style
+  theme_light() +
+  theme(
+    text = element_text(family = "serif"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5, margin = margin(b = 20)),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 10),
+    legend.position = "top",
+    legend.background = element_rect(fill = "white", color = "black", linewidth = 0.5),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed", color = "gray70")
+  ) +
+  # Add titles and labels
+  labs(
+    title = "Fancy Box and Whisker Plot Comparison",
+    x = "Experimental Groups",
+    y = "Measurement Values",
+    fill = "Experimental Groups"
+  ) +
+  # Use the custom color palette
+  scale_fill_manual(values = custom_colors) +
+  # Adjust the y-axis limits to ensure annotations are visible
+  ylim(min(df$Value) - 20, max(df$Value) + 25) +
+  # Add caption explaining box plot elements
+  labs(caption = "Box: Interquartile range (IQR, 25%-75%)\nWhiskers: Range of data excluding outliers\nNotch: 95% confidence interval around median")
+
+# Print the plot
+print(p)
+
+# To save the plot to a file (optional)
+# ggsave("fancy_boxplot.png", p, width = 12, height = 7, dpi = 300)
