@@ -1,0 +1,97 @@
+# Install required packages if not already installed
+if (!requireNamespace("remotes", quietly = TRUE)) {
+  install.packages("remotes")
+}
+if (!requireNamespace("readxl", quietly = TRUE)) {
+  install.packages("readxl")
+}
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+
+# Install the vioplot package from GitHub using devtools
+devtools::install_github("TomKellyGenetics/vioplot", ref = "dev")
+
+# Load required libraries
+library(readxl)
+library(vioplot)
+
+# Set working directory - replace with your actual directory path
+# setwd("/path/to/your/directory")
+
+# File path to your Excel file - replace with your actual file path
+file_path <- "your_excel_file.xlsx"
+
+# Read Excel file
+data <- read_excel(file_path)
+
+# Check if the required columns exist
+if(!("High CD31" %in% colnames(data)) | !("Low CD31" %in% colnames(data))) {
+  stop("Excel file must contain columns named 'High CD31' and 'Low CD31'")
+}
+
+# Extract data from columns
+high_cd31 <- na.omit(data$`High CD31`)
+low_cd31 <- na.omit(data$`Low CD31`)
+
+# Create a data list for violin plot
+violin_data <- list(
+  "High CD31" = high_cd31,
+  "Low CD31" = low_cd31
+)
+
+# Set up plotting window
+pdf("CD31_violin_plot.pdf", width = 8, height = 6)  # Save to PDF
+# Alternatively, use: png("CD31_violin_plot.png", width = 800, height = 600)
+
+# Create custom colors
+colors <- c("#3498db", "#e74c3c")  # Blue for High CD31, Red for Low CD31
+
+# Create the violin plot
+vioplot(violin_data,
+        names = names(violin_data),
+        col = colors,
+        border = "black",
+        rectCol = "black",
+        lineCol = "black",
+        areaEqual = FALSE,
+        main = "CD31 Expression Comparison",
+        xlab = "CD31 Expression Groups",
+        ylab = "Measurement Values")
+
+# Add statistics
+for (i in 1:2) {
+  group_data <- violin_data[[i]]
+  x_pos <- i
+  
+  # Calculate statistics
+  median_val <- median(group_data)
+  mean_val <- mean(group_data)
+  
+  # Add text for median
+  text(x = x_pos, y = median_val + max(group_data)*0.05, 
+       labels = paste("Median:", round(median_val, 1)),
+       cex = 0.8, font = 2)
+  
+  # Add text for mean
+  text(x = x_pos, y = mean_val - max(group_data)*0.05, 
+       labels = paste("Mean:", round(mean_val, 1)),
+       cex = 0.8, font = 2)
+}
+
+# Add legend
+legend("topright", 
+       legend = names(violin_data),
+       fill = colors,
+       border = "black",
+       title = "Expression Groups")
+
+# Add custom annotation
+mtext("Violin: Kernel density estimation of data distribution\nBox: Interquartile range (IQR, 25%-75%)\nLine: Median", 
+      side = 1, line = 4, cex = 0.8, font = 3)
+
+# Close the PDF device
+dev.off()
+
+# Display message
+cat("Violin plot has been saved as 'CD31_violin_plot.pdf'\n")
